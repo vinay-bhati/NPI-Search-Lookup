@@ -94,7 +94,7 @@ def main():
         unsafe_allow_html=True
     )
     # Path to the uploaded image
-    logo_path = r"C:\Users\vbhati\OneDrive - Pulmonx\Documents\NPI API APP\Logo.jpg"
+    logo_path = "Logo.jpg"
     
     # Load the image using PIL
     try:

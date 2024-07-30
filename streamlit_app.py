@@ -226,6 +226,7 @@ def main():
                 "state": state,
                 "postal_code": postal_code,
                 "country_code": country_code,
+                "limit": 200,  # Added the limit parameter here
                 "pretty": "true"
             }
 

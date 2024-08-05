@@ -3,6 +3,8 @@ import requests
 import pandas as pd
 from PIL import Image
 from io import BytesIO
+import openpyxl
+
 
 # Function to call the API
 def call_npi_api(params):
@@ -245,7 +247,7 @@ def main():
         uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
         
         if uploaded_file is not None:
-            df = pd.read_excel(uploaded_file)
+            df = pd.read_excel(uploaded_file,, engine='openpyxl')
             
             available_columns = df.columns.tolist()
             

@@ -141,7 +141,7 @@ def main():
         unsafe_allow_html=True
     )
     # Path to the uploaded image
-    logo_path = r"C:\Users\Vinay Bhati\Documents\NPI API APP\Logo.JPG"
+    logo_path = "Logo.JPG"
     
     # Load the image using PIL
     try:

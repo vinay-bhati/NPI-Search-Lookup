@@ -9,8 +9,18 @@ import openpyxl
 # Function to call the API
 def call_npi_api(params):
     base_url = "https://npiregistry.cms.hhs.gov/api/"
-    response = requests.get(base_url, params=params)
-    return response.json()
+    try:
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()  # Raises an error for bad status codes
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        # If there's any issue with the request, log the error and return an empty dict
+        st.warning(f"API request failed: {e}")
+        return {}  # Return empty dictionary if request fails
+    except ValueError as e:
+        # If the JSON is invalid or any other issue occurs
+        st.warning(f"Failed to parse JSON: {e}")
+        return {}  # Return empty dictionary if JSON parsing fails
 
 
 # Function to extract required data from the API response
@@ -83,6 +93,10 @@ def process_file(file, match_npi, match_first_name, match_last_name, match_phone
             params["last_name"] = row.get('Last Name', '')
 
         response_data = call_npi_api(params)
+        # Skip to the next row if the API response is empty or invalid
+        if not response_data:
+            result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+            continue
 
         # If the initial API call returns exactly one result, no need to filter by phone number
         if response_data.get("result_count", 0) == 1:

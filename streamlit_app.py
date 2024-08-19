@@ -37,9 +37,15 @@ def extract_data(data):
         middle_name = basic_info.get("middle_name", "")
         name = f"{first_name} {middle_name} {last_name}".strip()
 
-        # Primary Taxonomy
+        # Primary Taxonomy and License
         taxonomies = result.get("taxonomies", [])
-        primary_taxonomy = next((taxonomy.get("desc", "") for taxonomy in taxonomies if taxonomy.get("primary", False)), "")
+        primary_taxonomy = ""
+        primary_license = ""
+        for taxonomy in taxonomies:
+            if taxonomy.get("primary", False):
+                primary_taxonomy = taxonomy.get("desc", "")
+                primary_license = taxonomy.get("license", "")
+                break
 
         # Primary Practice Address
         addresses = result.get("addresses", [])
@@ -61,11 +67,12 @@ def extract_data(data):
         endpoints = result.get("endpoints", [])
         emails = "\n".join(endpoint.get("endpoint", "") for endpoint in endpoints)
 
-        ## Append the extracted data to the list
+        # Append the extracted data to the list
         extracted_data.append({
             "NPI": npi_number,
             "Name": name,
             "Primary Taxonomy": primary_taxonomy,
+            "Primary License": primary_license,  # Add the license here
             "Primary Practice Address": primary_address,
             "Primary City": primary_city,
             "Primary State": primary_state,
@@ -95,7 +102,7 @@ def process_file(file, match_npi, match_first_name, match_last_name, match_phone
         response_data = call_npi_api(params)
         # Skip to the next row if the API response is empty or invalid
         if not response_data:
-            result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+            result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary License": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
             continue
 
         # If the initial API call returns exactly one result, no need to filter by phone number
@@ -135,7 +142,9 @@ def process_file(file, match_npi, match_first_name, match_last_name, match_phone
                 if extracted_info:
                     result_data.append({**row, **extracted_info[0]})
             else:
-                result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+                #result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+                result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary License": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+
     
     result_df = pd.DataFrame(result_data)
     return result_df

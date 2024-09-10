@@ -22,6 +22,121 @@ def call_npi_api(params):
         st.warning(f"Failed to parse JSON: {e}")
         return {}  # Return empty dictionary if JSON parsing fails
 
+def fetch_npi_data(taxonomy_code, entity_type, count=100):
+    offset = 0
+    all_data = []
+    
+    # Decide the base API URL based on entity_type
+    if entity_type == 'individual':
+        api_url = 'https://clinicaltables.nlm.nih.gov/api/npi_idv/v3/search'
+    elif entity_type == 'organization':
+        api_url = 'https://clinicaltables.nlm.nih.gov/api/npi_org/v3/search'
+    else:
+        return None
+    
+    while True:
+        params = {
+            'terms': '',
+            'q': f'licenses.taxonomy.code:{taxonomy_code}',
+            'ef': 'NPI,provider_type,name.full,addr_practice.full,licenses,name.credential,addr_practice.city,addr_practice.state,addr_practice.zip,addr_practice.phone,addr_practice.country',
+            'count': count,
+            'offset': offset
+        }
+        
+        response = requests.get(api_url, params=params)
+        data = response.json()
+
+        # Extract total number of records and results
+        total_records = data[0]
+        npi_results = data[2]  # Third element contains the fields like NPI, provider_type, etc.
+
+        # Break loop if no more data is returned
+        if not npi_results.get("NPI"):
+            break
+        
+        all_data.extend(parse_data(npi_results,entity_type))
+        offset += count
+
+        # If we have fetched all results, exit the loop
+        if offset >= total_records:
+            break
+    
+    return all_data
+
+# Function to parse and clean the data, removing null fields and handling licenses
+def parse_data(npi_results,entity_type):
+    cleaned_data = []
+
+    for i in range(len(npi_results["NPI"])):
+        npi = npi_results["NPI"][i]
+        name = npi_results["name.full"][i]
+        provider_type = npi_results["provider_type"][i]
+        addr_practice = npi_results["addr_practice.full"][i]
+        city = npi_results["addr_practice.city"][i]
+        state = npi_results["addr_practice.state"][i]
+        zip_code = npi_results["addr_practice.zip"][i]
+        phone = npi_results["addr_practice.phone"][i]
+        country = npi_results["addr_practice.country"][i]
+        credential = npi_results["name.credential"][i]
+
+        # Initialize primary taxonomy as None
+        primary_taxonomy = None
+
+        # Get the licenses information
+        licenses = npi_results["licenses"][i]
+
+        # First, try to find the license with is_primary_taxonomy == "Y"
+        for license_group in licenses:
+            taxonomy_info = license_group.get('taxonomy')
+            is_primary = license_group.get('is_primary_taxonomy')
+            
+            if is_primary == "Y" and taxonomy_info:
+                primary_taxonomy = taxonomy_info
+                break
+
+        # If no "Y", check for is_primary_taxonomy == "X"
+        if not primary_taxonomy:
+            for license_group in licenses:
+                taxonomy_info = license_group.get('taxonomy')
+                is_primary = license_group.get('is_primary_taxonomy')
+                
+                if is_primary == "X" and taxonomy_info:
+                    primary_taxonomy = taxonomy_info
+                    break
+
+        # Fallback: If no "Y" or "X", use the first available taxonomy
+        if not primary_taxonomy and licenses:
+            primary_taxonomy = licenses[0].get('taxonomy')
+
+        # Append the cleaned data
+        cleaned_data.append({
+            "NPI": npi,
+            "Name": name,
+            "Provider Type": provider_type,
+            "Taxonomy Code": primary_taxonomy.get("code", "None") if primary_taxonomy else "None",
+            "Taxonomy Grouping": primary_taxonomy.get("grouping", "None") if primary_taxonomy else "None",
+            "Taxonomy Classification": primary_taxonomy.get("classification", "None") if primary_taxonomy else "None",
+            "Taxonomy Specialization": primary_taxonomy.get("specialization", "None") if primary_taxonomy else "None",
+            "Address": addr_practice,
+            "City": city,
+            "State": state,
+            "ZIP Code": zip_code,
+            "Phone": phone,
+            "Country": country,
+            "Credential": credential,
+            "Entity Type":entity_type
+        })
+    
+    return cleaned_data
+
+# Function to download the DataFrame as an Excel file
+def download_dataframe_as_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False)
+        writer.close()  # Use close() instead of save()
+    processed_data = output.getvalue()
+    return processed_data
 
 # Function to extract required data from the API response
 def extract_data(data):
@@ -240,7 +355,7 @@ def main():
     st.markdown('<div class="radio-label">Select Mode</div>', unsafe_allow_html=True)
 
     # Radio buttons for selecting the mode
-    mode = st.radio("", ("***Search NPI***", "***Match NPI***"), index=None, key="mode")
+    mode = st.radio("", ("***Search NPI***", "***Match NPI***", "***Extract NPI Data***"), index=None, key="mode")
     
     # Note for Match NPI
     if mode == "***Match NPI***":
@@ -352,6 +467,66 @@ def main():
             
             # Display the DataFrame using st.table for wrapped text
             st.table(df)
+    
+    if mode == "***Extract NPI Data***":
+        entity_type = st.radio("Select Entity Type", ['Organization', 'Individual', 'All'])
+
+        # Display the note for the users
+        st.markdown("""
+        **Note:** 
+        ***If you fetch data for a specific taxonomy code and see entries with other taxonomy codes, 
+        it is because the displayed taxonomy code is **Primary**. The individual/organization also 
+        have the taxonomy requested in the search criteria, but it is not marked as Primary***.
+        """)
+        
+        # Step 3: Text input for taxonomy codes
+        taxonomy_codes = st.text_area("Enter Taxonomy Codes (one per line):", "")
+        taxonomy_list = [code.strip() for code in taxonomy_codes.split("\n") if code.strip()]
+        
+        # Step 4: Once user submits, process each taxonomy code
+        if st.button("Fetch Data"):
+            if not taxonomy_list:
+                st.warning("Please enter at least one taxonomy code.")
+            else:
+                all_results = []
+                for taxonomy_code in taxonomy_list:
+                    st.write(f"Fetching data for taxonomy code: {taxonomy_code}")
+                    
+                    if entity_type in ['Individual', 'All']:
+                        individual_data = fetch_npi_data(taxonomy_code, 'individual')
+                        if individual_data:
+                            all_results.extend(individual_data)
+                            st.write(f"Number of Records extracted for taxonomy code {taxonomy_code} individual: {len(individual_data)}")
+
+                    if entity_type in ['Organization', 'All']:
+                        organization_data = fetch_npi_data(taxonomy_code, 'organization')
+                        if organization_data:
+                            all_results.extend(organization_data)
+                            st.write(f"Number of Records extracted for taxonomy code {taxonomy_code} organization: {len(organization_data)}")
+
+                
+                # Step 5: Display the data in a table if data exists
+                if all_results:
+                    df = pd.DataFrame(all_results, columns=[
+                        'NPI', 'Name', 'Provider Type', 'Taxonomy Code', 
+                        'Taxonomy Grouping', 'Taxonomy Classification',
+                        'Taxonomy Specialization', 'Address', 
+                        'City', 'State',
+                        'ZIP Code', 'Phone', 'Country', 
+                        'Credential','Entity Type'
+                    ])
+
+                    # Download button
+                    st.download_button(
+                        label="Download data as Excel",
+                        data=download_dataframe_as_excel(df),
+                        file_name="npi_data_extract.xlsx",
+                        mime="application/vnd.ms-excel"
+                    )
+
+                    st.dataframe(df)
+                else:
+                    st.write("No data found.")
 
 if __name__ == "__main__":
     main()

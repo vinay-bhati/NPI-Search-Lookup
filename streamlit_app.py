@@ -175,6 +175,7 @@ def extract_data(data):
                 addresses[0].get('country_name', ''),
                 f"Phone: {addresses[0].get('telephone_number', '')}"
             ]))
+            primary_postal_code = addresses[0].get('postal_code', '')
             primary_city = addresses[0].get('city', '')
             primary_state = addresses[0].get('state', '')
 
@@ -189,6 +190,7 @@ def extract_data(data):
             "Primary Taxonomy": primary_taxonomy,
             "Primary License": primary_license,  # Add the license here
             "Primary Practice Address": primary_address,
+            "Primary Postal Code": primary_postal_code,
             "Primary City": primary_city,
             "Primary State": primary_state,
             "API Email": emails
@@ -217,7 +219,7 @@ def process_file(file, match_npi, match_first_name, match_last_name, match_phone
         response_data = call_npi_api(params)
         # Skip to the next row if the API response is empty or invalid
         if not response_data:
-            result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary License": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+            result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary License": "", "Primary Practice Address": "","Primary Postal Code":"", "Primary City": "", "Primary State": "", "API Email": ""})
             continue
 
         # If the initial API call returns exactly one result, no need to filter by phone number
@@ -258,7 +260,7 @@ def process_file(file, match_npi, match_first_name, match_last_name, match_phone
                     result_data.append({**row, **extracted_info[0]})
             else:
                 #result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
-                result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary License": "", "Primary Practice Address": "", "Primary City": "", "Primary State": "", "API Email": ""})
+                result_data.append({**row, "NPI": "", "Name": "", "Primary Taxonomy": "", "Primary License": "", "Primary Practice Address": "","Primary Postal Code":"", "Primary City": "", "Primary State": "", "API Email": ""})
 
     
     result_df = pd.DataFrame(result_data)
